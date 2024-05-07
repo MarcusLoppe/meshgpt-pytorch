@@ -37,6 +37,7 @@ setup(
     'tqdm',
     'vector-quantize-pytorch>=1.12.8',
     'x-transformers>=1.26.0',
+    'trimesh',
   ],
   classifiers=[
     'Development Status :: 4 - Beta',
