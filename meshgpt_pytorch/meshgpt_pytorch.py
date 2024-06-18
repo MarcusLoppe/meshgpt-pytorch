@@ -1654,7 +1654,7 @@ class MeshTransformer(Module, PyTorchModelHubMixin):
         num_faces = fine_vertex_codes.shape[1]
         one_face = num_faces == 1
 
-        fine_vertex_codes = rearrange(fine_vertex_codes, 'b nf n d -> (b nf) n d')
+        fine_vertex_codes = rearrange(fine_vertex_codes, 'b nf n d -> b (nf n) d') 
 
         if one_face:
             fine_vertex_codes = fine_vertex_codes[:, :(curr_vertex_pos + 1)]
@@ -1689,7 +1689,7 @@ class MeshTransformer(Module, PyTorchModelHubMixin):
         attended_vertex_codes, fine_cache = self.fine_decoder(
             fine_vertex_codes,
             cache = fine_cache,
-            **fine_attn_context_kwargs,
+            **attn_context_kwargs,
             return_hiddens = True
         )
 
