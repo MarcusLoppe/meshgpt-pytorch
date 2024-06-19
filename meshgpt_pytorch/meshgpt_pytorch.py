@@ -1665,12 +1665,7 @@ class MeshTransformer(Module, PyTorchModelHubMixin):
 
         # optional text cross attention conditioning for fine transformer
 
-        if self.fine_cross_attend_text:
-            repeat_batch = fine_vertex_codes.shape[0] // text_embed.shape[0]
-
-            text_embed = repeat(text_embed, 'b ... -> (b r) ...' , r = repeat_batch)
-            text_mask = repeat(text_mask, 'b ... -> (b r) ...', r = repeat_batch)
-
+        if self.fine_cross_attend_text:  
             fine_attn_context_kwargs = dict(
                 context = text_embed,
                 context_mask = text_mask
@@ -1689,7 +1684,7 @@ class MeshTransformer(Module, PyTorchModelHubMixin):
         attended_vertex_codes, fine_cache = self.fine_decoder(
             fine_vertex_codes,
             cache = fine_cache,
-            **attn_context_kwargs,
+            **fine_attn_context_kwargs,
             return_hiddens = True
         )
 
