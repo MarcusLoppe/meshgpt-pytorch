@@ -471,6 +471,8 @@ class MeshAutoencoder(Module):
             dim_head = 32,
             heads = 8
         ),
+        transformer_decoder_depth = 12,
+        transformer_decoder_heads = 12,
         local_attn_window_size = 64,
         linear_attn_kwargs: dict = dict(
             dim_head = 8,
@@ -625,6 +627,7 @@ class MeshAutoencoder(Module):
             self.decoders.append(resnet_block)
             curr_dim = dim_layer
 
+
         self.to_coor_logits = nn.Sequential(
             nn.Linear(curr_dim, num_discrete_coors * total_coordinates_per_face),
             Rearrange('... (v c) -> ... v c', v = total_coordinates_per_face)
@@ -634,6 +637,19 @@ class MeshAutoencoder(Module):
 
         self.commit_loss_weight = commit_loss_weight
         self.bin_smooth_blur_sigma = bin_smooth_blur_sigma
+        
+        self.transformer_decoder = Decoder(
+            dim = dim_codebook * self.num_vertices_per_face,
+            depth = transformer_decoder_depth,
+            heads = transformer_decoder_heads,
+            attn_dim_head = 64,
+            attn_flash = flash_attn,
+            attn_dropout = 0,
+            ff_dropout = 0,
+            cross_attend = False,
+             ff_glu = True,
+            attn_num_mem_kv = 4
+        ) 
 
     @property
     def device(self):
@@ -876,14 +892,9 @@ class MeshAutoencoder(Module):
             x = attn(x, mask = face_mask) + x
             x = ff(x) + x
 
-        x = rearrange(x, 'b n d -> b d n')
-        x = x.masked_fill(~conv_face_mask, 0.)
-        x = self.init_decoder_conv(x)
-
-        for resnet_block in self.decoders:
-            x = resnet_block(x, mask = conv_face_mask)
-
-        return rearrange(x, 'b d n -> b n d')
+        x, cache = self.transformer_decoder(x, mask = face_mask,    return_hiddens = True ) 
+        
+        return x
 
     @typecheck
     @torch.no_grad()
@@ -1654,7 +1665,7 @@ class MeshTransformer(Module, PyTorchModelHubMixin):
         num_faces = fine_vertex_codes.shape[1]
         one_face = num_faces == 1
 
-        fine_vertex_codes = rearrange(fine_vertex_codes, 'b nf n d -> (b nf) n d')
+        fine_vertex_codes = rearrange(fine_vertex_codes, 'b nf n d -> b (nf n) d')  
 
         if one_face:
             fine_vertex_codes = fine_vertex_codes[:, :(curr_vertex_pos + 1)]
@@ -1666,11 +1677,7 @@ class MeshTransformer(Module, PyTorchModelHubMixin):
         # optional text cross attention conditioning for fine transformer
 
         if self.fine_cross_attend_text:
-            repeat_batch = fine_vertex_codes.shape[0] // text_embed.shape[0]
-
-            text_embed = repeat(text_embed, 'b ... -> (b r) ...' , r = repeat_batch)
-            text_mask = repeat(text_mask, 'b ... -> (b r) ...', r = repeat_batch)
-
+            repeat_batch = fine_vertex_codes.shape[0] // text_embed.shape[0] 
             fine_attn_context_kwargs = dict(
                 context = text_embed,
                 context_mask = text_mask
