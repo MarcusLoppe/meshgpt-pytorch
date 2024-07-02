@@ -72,7 +72,7 @@ class MeshDataset(Dataset):
         return cls(data) 
     
     def sort_dataset_keys(self):
-        desired_order = ['vertices', 'faces', 'face_edges', 'texts','text_embeds','codes'] 
+        desired_order = ['vertices', 'faces', 'face_edges', 'texts','text_embeds',"text_tokens",'codes'] 
         self.data = [
             {key: d[key] for key in desired_order if key in d} for d in self.data
         ]
