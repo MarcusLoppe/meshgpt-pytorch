@@ -1491,8 +1491,7 @@ class MeshTransformer(Module, PyTorchModelHubMixin):
                 assert text_embeds.shape[0] == codes.shape[0], 'batch size of texts or text embeddings is not equal to the batch size of the mesh codes'
 
             text_tokens = text_tokens.masked_fill(text_tokens == self.pad_id, 0)
-            text_embeds = self.text_embedding(text_tokens)   
-            text_embeds = self.text_norm(text_embeds)
+            text_embeds = self.text_embedding(text_tokens) 
             
             _, maybe_dropped_text_embeds = self.conditioner(
                 text_embeds = text_embeds,
