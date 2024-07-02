@@ -1179,7 +1179,7 @@ class MeshTransformer(Module, PyTorchModelHubMixin):
             self.text_coarse_film_cond = FiLM(dim_text, dim) if text_cond_with_film else identity
             self.text_fine_film_cond = FiLM(dim_text, dim_fine) if text_cond_with_film else identity
             
-        self.text_norm = nn.LayerNorm(cross_attn_dim_context)
+        #self.text_norm = nn.LayerNorm(cross_attn_dim_context)
         self.text_embedding = nn.Embedding(self.conditioner.text_models[0].tokenizer.vocab_size + 1, cross_attn_dim_context)
         # for summarizing the vertices of each face
 
