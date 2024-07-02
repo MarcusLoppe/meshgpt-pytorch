@@ -1316,7 +1316,7 @@ class MeshTransformer(Module, PyTorchModelHubMixin):
         else:
             tokenized_text = self.conditioner.text_models[0].tokenizer([text], padding=True, truncation=True, return_tensors='pt')['input_ids'][0]  
              
-        return torch.tensor(tokenized_text) 
+        return tokenized_text
     
     @eval_decorator
     @torch.no_grad()
