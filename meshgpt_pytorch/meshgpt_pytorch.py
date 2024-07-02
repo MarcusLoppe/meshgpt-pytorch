@@ -8,6 +8,7 @@ import torch
 from torch import nn, Tensor, einsum
 from torch.nn import Module, ModuleList
 import torch.nn.functional as F
+from classifier_free_guidance_pytorch.open_clip import OpenClipAdapter
 from torch.utils.checkpoint import checkpoint
 from torch.cuda.amp import autocast
 
@@ -1078,6 +1079,9 @@ class MeshAutoencoder(Module):
 
         return recon_faces, total_loss, loss_breakdown
 
+
+from torch.nn.utils.rnn import pad_sequence
+
 @save_load(version = __version__)
 class MeshTransformer(Module, PyTorchModelHubMixin):
     @typecheck
@@ -1144,7 +1148,9 @@ class MeshTransformer(Module, PyTorchModelHubMixin):
         assert divisible_by(max_seq_len, self.num_vertices_per_face * self.num_quantizers), f'max_seq_len ({max_seq_len}) must be divisible by (3 x {self.num_quantizers}) = {3 * self.num_quantizers}' # 3 or 4 vertices per face, with D codes per vertex
 
         self.token_embed = nn.Embedding(self.codebook_size + 1, dim)
-
+ 
+        self.text_embedding = nn.Embedding(self.conditioner.text_models[0].tokenizer.vocab_size + 1, dim)
+        
         self.quantize_level_embed = nn.Parameter(torch.randn(self.num_quantizers, dim))
         self.vertex_embed = nn.Parameter(torch.randn(self.num_vertices_per_face, dim))
 
@@ -1297,6 +1303,20 @@ class MeshTransformer(Module, PyTorchModelHubMixin):
 
         return text_embeds
 
+    @torch.no_grad()
+    def tokenized_input(self, text): 
+        assert isinstance(text, str), f'text must be a string, not {type(text)}' 
+        assert exists(self.conditioner)
+        assert exists(self.conditioner.text_models[0])
+        
+        if isinstance(self.conditioner.text_models[0], OpenClipAdapter):
+            texts, max_length = self.conditioner.text_models[0].tokenizer.tokenize([text])
+            tokenized_text = texts[..., :max_length].squeeze(0)
+        else:
+            tokenized_text = self.conditioner.text_models[0].tokenizer([text], padding=True, truncation=True, return_tensors='pt')['input_ids'][0]  
+             
+        return torch.tensor(tokenized_text) 
+    
     @eval_decorator
     @torch.no_grad()
     @typecheck
@@ -1328,6 +1348,13 @@ class MeshTransformer(Module, PyTorchModelHubMixin):
         if self.condition_on_text:
             assert exists(texts) ^ exists(text_embeds), '`text` or `text_embeds` must be passed in if `condition_on_text` is set to True'
             if exists(texts):
+                token_list = []
+                for text in texts:
+                    token_list.append(self.tokenized_input(text)[1:-1])
+                      
+                tokens = pad_sequence(token_list, batch_first=True, padding_value=self.pad_id).to(self.device)
+                print("tokens", tokens.shape)
+                
                 text_embeds = self.embed_texts(texts)
 
             batch_size = default(batch_size, text_embeds.shape[0])
@@ -1350,6 +1377,7 @@ class MeshTransformer(Module, PyTorchModelHubMixin):
             output = self.forward_on_codes(
                 codes,
                 text_embeds = text_embeds,
+                text_tokens = tokens,
                 return_loss = False,
                 return_cache = cache_kv,
                 append_eos = False,
@@ -1444,6 +1472,7 @@ class MeshTransformer(Module, PyTorchModelHubMixin):
         cache = None,
         texts: List[str] | None = None,
         text_embeds: Tensor | None = None,
+        text_tokens: Tensor | None = None,
         cond_drop_prob = None
     ):
         # handle text conditions
@@ -1459,6 +1488,9 @@ class MeshTransformer(Module, PyTorchModelHubMixin):
             if exists(codes):
                 assert text_embeds.shape[0] == codes.shape[0], 'batch size of texts or text embeddings is not equal to the batch size of the mesh codes'
 
+            text_tokens = text_tokens.masked_fill(text_tokens == self.pad_id, 0)
+            text_embeds = self.text_embedding(text_tokens)   
+            
             _, maybe_dropped_text_embeds = self.conditioner(
                 text_embeds = text_embeds,
                 cond_drop_prob = cond_drop_prob
