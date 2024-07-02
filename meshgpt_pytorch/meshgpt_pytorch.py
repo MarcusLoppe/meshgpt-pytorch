@@ -1149,7 +1149,6 @@ class MeshTransformer(Module, PyTorchModelHubMixin):
 
         self.token_embed = nn.Embedding(self.codebook_size + 1, dim)
  
-        self.text_embedding = nn.Embedding(self.conditioner.text_models[0].tokenizer.vocab_size + 1, dim)
         
         self.quantize_level_embed = nn.Parameter(torch.randn(self.num_quantizers, dim))
         self.vertex_embed = nn.Parameter(torch.randn(self.num_vertices_per_face, dim))
@@ -1180,6 +1179,7 @@ class MeshTransformer(Module, PyTorchModelHubMixin):
             self.text_coarse_film_cond = FiLM(dim_text, dim) if text_cond_with_film else identity
             self.text_fine_film_cond = FiLM(dim_text, dim_fine) if text_cond_with_film else identity
 
+        self.text_embedding = nn.Embedding(self.conditioner.text_models[0].tokenizer.vocab_size + 1, dim)
         # for summarizing the vertices of each face
 
         self.to_face_tokens = nn.Sequential(
