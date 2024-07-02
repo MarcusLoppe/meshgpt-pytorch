@@ -1310,7 +1310,7 @@ class MeshTransformer(Module, PyTorchModelHubMixin):
         assert exists(self.conditioner.text_models[0])
         
         if isinstance(self.conditioner.text_models[0], OpenClipAdapter):
-            texts, = self.conditioner.text_models[0].tokenizer([text])
+            texts = self.conditioner.text_models[0].tokenizer([text])
             max_length = (texts != 0).sum(dim=1).max().item()
             tokenized_text = texts[..., :max_length].squeeze(0)
         else:
